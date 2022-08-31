@@ -27,7 +27,7 @@ static void on_frame_decoded(AVFrame* frame) {
 
 void decode_all()
 {
-  const char* input_path = "/home/ubuntu/webcam/PSDK_0004.mp4";
+  const char* input_path = "/home/ubuntu/webcam/ffmpeg_codec.mp4";//PSDK_0004.mp4";
   AVFormatContext* format_context = nullptr;
   if (avformat_open_input(&format_context, input_path, nullptr, nullptr) != 0) {
     printf("avformat_open_input failed\n");
@@ -102,7 +102,7 @@ int main(int argc, char* argv[])
 
   decode_all();
 
-  const char* output_path = "output_original.h264";
+  const char* output_path = "output_original4.h264";
   AVIOContext* io_context = nullptr;
   if (avio_open(&io_context, output_path, AVIO_FLAG_WRITE) < 0) {
     printf("avio_open failed\n");
@@ -150,7 +150,7 @@ int main(int argc, char* argv[])
   AVDictionary* codec_options = nullptr;
   av_dict_set(&codec_options, "preset", "medium", 0);
   av_dict_set(&codec_options, "crf", "22", 0);
-  av_dict_set(&codec_options, "profile", "high", 0);
+  av_dict_set(&codec_options, "profile", "high422", 0);
   av_dict_set(&codec_options, "level", "4.0", 0);
 
   if (avcodec_open2(codec_context, codec_context->codec, &codec_options) != 0) {
@@ -189,6 +189,8 @@ int main(int argc, char* argv[])
     AVPacket packet = AVPacket();
     while (avcodec_receive_packet(codec_context, &packet) == 0) {
       packet.stream_index = 0;
+      printf("packet1: %d %d  \n", packet.size,packet.data[40]);//data[10]);//これがdatabufferのdatabuff[10]とdata_lengthに相当
+
       av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
       if (av_interleaved_write_frame(format_context, &packet) != 0) {
         printf("av_interleaved_write_frame failed\n");
