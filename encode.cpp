@@ -43,7 +43,7 @@ void decode_all()
   // make codec options
   AVDictionary* codec_options1 = nullptr;
   av_dict_set(&codec_options1, "framerate", "30", 0);
-  av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
+  //av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
   av_dict_set(&codec_options1, "video_size", "640x480", 0);
 
   const auto raw_format = av_find_input_format("rawvideo");

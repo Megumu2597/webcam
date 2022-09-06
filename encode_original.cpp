@@ -245,7 +245,7 @@ int main(int argc, char* argv[])
   // make codec options
   AVDictionary* codec_options = nullptr;
   av_dict_set(&codec_options, "preset", "medium", 0);
-  av_dict_set(&codec_options, "pixel_format", "yuv420p", 0);
+  //av_dict_set(&codec_options, "pixel_format", "yuyv", 0);
   //av_dict_set(&codec_options, "crf", "22", 0);
   //av_dict_set(&codec_options, "profile", "high422", 0);
   //av_dict_set(&codec_options, "level", "4.0", 0);
