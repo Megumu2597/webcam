@@ -7,7 +7,6 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
-#include <libavutil/imgutils.h>
 
 }
 #include <opencv2/highgui/highgui.hpp>
@@ -35,7 +34,7 @@ static void on_frame_decoded(AVFrame* frame) {
 //固定フレームレート化
 AVRational time_base = av_make_q(1001, 30000); //30000/1001=29.97fpsに設定.
 
-
+//void set_format_conetxt(input_path,)
 void decode_all()
 {
   const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
@@ -279,15 +278,81 @@ int main()
   static const uint8_t s_frameAudInfo[VIDEO_FRAME_AUD_LEN] = {0x00, 0x00, 0x00, 0x01, 0x09, 0x10};
   unsigned long dataLength = 0;
 
+  //CV使わずにcamをgetする方法
+  const char* input_path = "/dev/video0";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+  
+    // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
+    // make codec options
+    AVDictionary* codec_options1 = nullptr;
+    av_dict_set(&codec_options1, "framerate", "30", 0);
+    av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
+    av_dict_set(&codec_options1, "video_size", "640x480", 0);
+
+    const auto raw_format = av_find_input_format("rawvideo");
+    if (raw_format == nullptr) {
+        printf("Could not find RAW input parser in FFmpeg");
+        throw std::runtime_error("RAW not found");
+    }
+    //printf("rawformat: %d\n",raw_format);
+
+
+    //add end      
+    AVFormatContext* format_context_cam = nullptr;
+    //if (avformat_open_input(&format_context_cam, input_path, nullptr, nullptr) != 0) {
+    if (avformat_open_input(&format_context_cam, input_path, raw_format, &codec_options1) != 0) {
+      printf("avformat_open_input failed\n");
+    }
+
+    //if (avformat_find_stream_info(format_context_cam, nullptr) < 0) {
+    if (avformat_find_stream_info(format_context_cam, &codec_options1) < 0) {
+      printf("avformat_find_stream_info failed\n");
+    }
+
+    AVStream* video_stream_cam = nullptr;
+    //for (int i = 0; i < (int)format_context_cam->nb_streams; ++i) {
+    for (int i = 0; i <5; ++i) {
+      if (format_context_cam->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+        video_stream_cam = format_context_cam->streams[i];
+        break;
+      }
+    }
+    if (video_stream_cam == nullptr) {
+      printf("No video stream ...\n");
+    }
+    //フレームのタイムスタンプの単位を取得.
+    //time_base = video_stream_cam->time_base;
+    printf("codec_id: %d\n",video_stream_cam->codecpar->codec_id);
+    AVCodec* codec_cam = avcodec_find_decoder(video_stream_cam->codecpar->codec_id);
+    //コーデック名から作ることも可能 ffmpeg -c hogehoge
+    //AVCodec* codec = avcodec_find_encoder_by_name("wrapped_avframe");
+    if (codec_cam == nullptr) {
+      printf("No supported decoder ...\n");
+    }
+
+    AVCodecContext* codec_context_cam = avcodec_alloc_context3(codec_cam);
+    if (codec_context_cam == nullptr) {
+      printf("avcodec_alloc_context3 failed\n");
+    }
+
+    if (avcodec_parameters_to_context(codec_context_cam, video_stream_cam->codecpar) < 0) {
+      printf("avcodec_parameters_to_context failed\n");
+    }
+
+    //if (avcodec_open2(codec_context, codec, nullptr) != 0) {
+    if (avcodec_open2(codec_context_cam, codec_cam, &codec_options1) != 0) {
+      printf("avcodec_open2 failed\n");
+    }
+    //add end
+
   int count = 0;
   //frameごとのループ処理スタート!!
   while(count < 200) {
     count++;
 
-    //streamからver: cv::mat -> Avframeに変換 
+    //streamからCVで取得するver: cv::mat -> Avframeに変換 
     // https://gist.github.com/foowaa/1d296a9dee81c7a2a52f291c95e55680
     //auto start = std::chrono::system_clock::now();
-    cam >> image;
+    /*cam >> image;
     AVFrame* frame;
     int width = image.cols;
     int height = image.rows;
@@ -297,6 +362,7 @@ int main()
     //printf("frame->pict_type : %d\n",frame->pict_type);
     av_image_alloc(frame->data, frame->linesize, width, height,
                    codec_context->pix_fmt,1);
+    */
                   // AVPixelFormat::AV_PIX_FMT_YUV420P, 1);
     //auto end = std::chrono::system_clock::now();
     //std::chrono::duration<double> diff = end-start;
@@ -310,6 +376,24 @@ int main()
     sws_freeContext(conversion);
     */
 
+   // ######CV使わずにframeを取得したい!#####3
+    
+
+    AVFrame* frame = av_frame_alloc();
+    AVPacket packet_cam = AVPacket();
+    //format_context_camを定義
+    if(av_read_frame(format_context_cam, &packet_cam) == 0) {
+      //if (packet.stream_index == video_stream_cam->index) {
+        if (avcodec_send_packet(codec_context, &packet_cam) != 0) {
+          printf("avcodec_send_packet failed\n");
+        }
+        while (avcodec_receive_frame(codec_context_cam, frame) == 0) {
+
+        }
+      //}
+      av_packet_unref(&packet_cam);
+    }
+    printf("frame access: %d \n",frame->data[10]);
     //動画からver: 1フレーム分を取り出す
     /*
     AVFrame* frame = frames.front();

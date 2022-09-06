@@ -85,6 +85,7 @@ def overlay():
     camera_height = int(height)    #カメラ高さ
     centerX = camera_width // 2   #中心(横)
     centerY = camera_height // 2  #中心(縦)
+    print(camera_width,camera_height,"camera wh")
     
     #for videowriterのためniyaru .
     if (write):
