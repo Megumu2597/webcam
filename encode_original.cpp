@@ -19,7 +19,7 @@ extern "C" {
 #pragma comment(lib, "avformat.lib")
 
 //AVRational time_base = av_make_q(1001, 30000);
-AVRational time_base = av_make_q(501, 30000);
+AVRational time_base = av_make_q(1001, 30000);
 std::deque<AVFrame*> frames;
 
 static void on_frame_decoded(AVFrame* frame) {
@@ -351,7 +351,8 @@ int main(int argc, char* argv[])
     
     int frame_count = 0;
     //AVFrame* new_frame = av_frame_alloc(); //receiveの外でframeにaccessする用.
-    while(frames.size() > 0) {
+    while(frame_count <100) {
+    //while(frames.size() > 0) {
     
     //AVFrame* frame_ = frames.front();
     //frames.pop_front();
