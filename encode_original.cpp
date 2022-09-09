@@ -350,6 +350,12 @@ int main(int argc, char* argv[])
     //############## add end ########################
     
     int frame_count = 0;
+    unsigned long dataLength_pct = 0;
+    unsigned char *dataBuffer_pct = NULL;
+    #define VIDEO_FRAME_AUD_LEN                  6
+    static const uint8_t s_frameAudInfo[VIDEO_FRAME_AUD_LEN] = {0x00, 0x00, 0x00, 0x01, 0x09, 0x10};
+    unsigned long dataLength = 0;
+    
     //AVFrame* new_frame = av_frame_alloc(); //receiveの外でframeにaccessする用.
     while(frame_count <100) {
     //while(frames.size() > 0) {
@@ -419,13 +425,21 @@ int main(int argc, char* argv[])
     AVPacket packet = AVPacket();
     while (avcodec_receive_packet(codec_context, &packet) == 0) {
       packet.stream_index = 0;
+      dataLength_pct = packet.size;
+      dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
       printf("packet1: %d %d  \n", packet.size,packet.data[40]);//data[10]);//これがdatabufferのdatabuff[10]とdata_lengthに相当
 
       av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
+      memcpy(dataBuffer_pct,packet.data,packet.size);
+      dataLength = packet.size;
+      memset(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN);//arg2->1へn文字コピー frameInfo[frameNumber].size==data_lengthでいいのかな?
+      dataLength = dataLength + VIDEO_FRAME_AUD_LEN;
       if (av_interleaved_write_frame(format_context, &packet) != 0) {
         printf("av_interleaved_write_frame failed\n");
       }
     }
+    free(dataBuffer_pct); 
+
   }
 
   // flush encoder
