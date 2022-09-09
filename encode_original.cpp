@@ -385,7 +385,7 @@ int main(int argc, char* argv[])
     //int64_t pts = av_frame_get_best_effort_timestamp(frame);
     //frame->pts = av_rescale_q(pts, time_base, codec_context->time_base);
     //固定フレームレート
-    new_frame->pts = av_rescale_q(frame_count++, time_base, codec_context_cam->time_base);
+    new_frame->pts = av_rescale_q(frame_count++, time_base, codec_context->time_base);
 
     new_frame->key_frame = 0;
     new_frame->pict_type = AV_PICTURE_TYPE_NONE; 
