@@ -43,6 +43,7 @@ void decode_all()
   // make codec options
   AVDictionary* codec_options1 = nullptr;
   av_dict_set(&codec_options1, "framerate", "30", 0);
+  av_dict_set(&codec_options1, "pixel_format", "yuv420p", 0);
   //av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
   av_dict_set(&codec_options1, "video_size", "640x480", 0);
 
@@ -124,7 +125,7 @@ void decode_all()
       }
     }
     av_packet_unref(&packet);
-    if (count_ > 100){
+    if (count_ > 150){
       break;
     }
   }
@@ -172,7 +173,7 @@ int main()
   cv::Mat image;*/
 
   //ファイル出力
-  const char* output_path = "output_encodecppvid2.mp4";
+  const char* output_path = "output_encodecppvideo2.mp4";
   AVIOContext* io_context = nullptr;
   if (avio_open(&io_context, output_path, AVIO_FLAG_WRITE) < 0) {
     printf("avio_open failed\n");
@@ -214,7 +215,7 @@ int main()
   */
   //%dとenumの内容の照合はこれでやる. https://ffmpeg.org/doxygen/trunk/pixfmt_8h_source.html
   AVFrame* first_frame = frames[0];
-  //printf("format %d\n",first_frame->format); ffmpeg_codec.mp4 v.s. psdk_0004.mp4
+  //printf("format %d\n",first_frame->format); ##### ffmpeg_codec.mp4 v.s. psdk_0004.mp4 #####
   codec_context->width = first_frame->width; //640   //1280 これが原因でavcodec_send failsedしてる!!
   codec_context->height = first_frame->height; //480  //720
   codec_context->pix_fmt = (AVPixelFormat)first_frame->format; //ffmpeg_codec.mp4では4:=AV_PIX_FMT_YUV422P //PSDK_0004.mp4では,0:=AV_PIX_FMT_YUV420P // /dev/video2には1:=AV_PIX_FMT_YUYV422 
@@ -279,17 +280,18 @@ int main()
   #define VIDEO_FRAME_AUD_LEN                  6
   static const uint8_t s_frameAudInfo[VIDEO_FRAME_AUD_LEN] = {0x00, 0x00, 0x00, 0x01, 0x09, 0x10};
   unsigned long dataLength = 0;
-/*
+
   //CV使わずにcamをgetする方法
   const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
   
     // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
     // make codec options
     AVDictionary* codec_options2 = nullptr;
+    av_dict_set(&codec_options2, "video_size", "640x480", 0);
     av_dict_set(&codec_options2, "framerate", "30", 0);
+    av_dict_set(&codec_options2, "pixel_format", "yuv420p", 0);
     //av_dict_set(&codec_options2, "pixel_format", "yuyv422", 0);
 
-    av_dict_set(&codec_options2, "video_size", "640x480", 0);
 
     const auto raw_format2 = av_find_input_format("rawvideo");
     if (raw_format2 == nullptr) {
@@ -344,15 +346,15 @@ int main()
       printf("avcodec_open2 failed\n");
     }
     //add end
-    */
+    
 
   int count = 0;
   //frameごとのループ処理スタート!!
-  while(count < 200) {
+  while(count < 100) {
     count++;
     //1.動画からver: 1フレーム分を取り出す
-    AVFrame* frame = frames.front();
-    frames.pop_front();
+    //AVFrame* frame = frames.front();
+    //frames.pop_front();
     
     //2.streamからCVで取得するver: cv::mat -> Avframeに変換 
     // https://gist.github.com/foowaa/1d296a9dee81c7a2a52f291c95e55680
@@ -383,7 +385,7 @@ int main()
     */
 
    // ######3.CV使わずにframeを取得したいver.!#####
-   /*
+   
     AVFrame* frame = av_frame_alloc();
     AVPacket packet_cam = AVPacket();
     //format_context_camを定義
@@ -401,16 +403,17 @@ int main()
       av_packet_unref(&packet_cam);
     }
     printf("frame access: %d \n",frame->data[10]);
-    */
+    
 
 
     //可変フレームレート(videoのfpsに合わせる場合)
-    int64_t pts = av_frame_get_best_effort_timestamp(frame);
-    frame->pts = av_rescale_q(pts, time_base, codec_context->time_base);
+    //int64_t pts = av_frame_get_best_effort_timestamp(frame);
+    //frame->pts = av_rescale_q(pts, time_base, codec_context->time_base);
     //固定フレームレート
-    //frame->pts = av_rescale_q(frame_count++, time_base, codec_context->time_base);
+    frame->pts = av_rescale_q(frame_count++, time_base, codec_context->time_base);
     frame->key_frame = 0;
     frame->pict_type = AV_PICTURE_TYPE_NONE;
+    //ここでformatとwidth,height入れなきゃだめらしい.
     //printf("before send frame %d %d\n",frame->data[10],frame->pts);
 
     if (avcodec_send_frame(codec_context, frame) != 0) {

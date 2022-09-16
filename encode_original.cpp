@@ -29,6 +29,8 @@ static void on_frame_decoded(AVFrame* frame) {
 }
 
 std::deque<AVFrame*> frames_stream;
+//const char* input_path = "/dev/video2";  // "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+const char* input_path = "output_video2_sameasORG.mp4";//PSDK_0004.mp4";// ffmpeg_codec.mp4";//
 
 //framesにframeを溜め込む
 static void on_frame_decoded2(AVFrame* frame) {
@@ -96,12 +98,13 @@ void decode_all()
     av_packet_unref(&packet);
   }
   */  
- const char* input_path = "/dev/video2";  // "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
-  
+   
   // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
   // make codec options
   AVDictionary* codec_options1 = nullptr;
   av_dict_set(&codec_options1, "framerate", "30", 0);
+  av_dict_set(&codec_options1, "pixel_format", "yuv420p", 0);
+
   //av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
   av_dict_set(&codec_options1, "video_size", "640x480", 0);
 
@@ -115,8 +118,8 @@ void decode_all()
 
   //add end      
   AVFormatContext* format_context = nullptr;
-  //if (avformat_open_input(&format_context, input_path, nullptr, nullptr) != 0) {
-  if (avformat_open_input(&format_context, input_path, raw_format, &codec_options1) != 0) {
+  if (avformat_open_input(&format_context, input_path, nullptr, &codec_options1) != 0) {
+  //if (avformat_open_input(&format_context, input_path, raw_format, &codec_options1) != 0) {
     printf("avformat_open_input failed\n");
   }
 
@@ -232,7 +235,7 @@ int main(int argc, char* argv[])
     printf("avcodec_alloc_context3 failed\n");
   }
 
-  // set picture properties
+  // set picture properties for encoder
   AVFrame* first_frame = frames[0];
   codec_context->pix_fmt = (AVPixelFormat)first_frame->format;//0=AV_PIX_FMT_YUV420P
   codec_context->width = first_frame->width;//640
@@ -244,7 +247,7 @@ int main(int argc, char* argv[])
   codec_context->colorspace = first_frame->colorspace;
   codec_context->chroma_sample_location = first_frame->chroma_location;//0:だめそう
   codec_context->sample_aspect_ratio = first_frame->sample_aspect_ratio;//num:0,den:1
-  printf("first frame: %d %d\n",first_frame->sample_aspect_ratio.num,first_frame->sample_aspect_ratio.den);
+  printf("first frame: %d %d\n",first_frame->format,first_frame->height);
 
   // set timebase
   codec_context->time_base = time_base;
@@ -283,14 +286,15 @@ int main(int argc, char* argv[])
   }
 
 
-  //#############CV使わずにcamをgetする方法#############################
-  const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+  //#############CV使わずにdecoderを作ってcamをgetする方法#############################
+  //const char* input_path = "/dev/video0";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
   
     // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
     // make codec options
     AVDictionary* codec_options2 = nullptr;
     av_dict_set(&codec_options2, "framerate", "30", 0);
     //av_dict_set(&codec_options2, "pixel_format", "yuyv422", 0);
+    av_dict_set(&codec_options2, "pixel_format", "yuv420p", 0);
 
     av_dict_set(&codec_options2, "video_size", "640x480", 0);
 
@@ -302,8 +306,8 @@ int main(int argc, char* argv[])
     //printf("rawformat: %d\n",raw_format2);
    
     AVFormatContext* format_context_cam = nullptr;
-    //if (avformat_open_input(&format_context_cam, input_path, nullptr, nullptr) != 0) {
-    if (avformat_open_input(&format_context_cam, input_path, raw_format2, &codec_options2) != 0) {
+    if (avformat_open_input(&format_context_cam, input_path, nullptr,  &codec_options2) != 0) {
+    //if (avformat_open_input(&format_context_cam, input_path, raw_format2, &codec_options2) != 0) {
       printf("avformat_open_input failed\n");
     }
 
@@ -357,13 +361,17 @@ int main(int argc, char* argv[])
     unsigned long dataLength = 0;
     
     //AVFrame* new_frame = av_frame_alloc(); //receiveの外でframeにaccessする用.
-    while(frame_count <100) {
+    //loop for frame_count times
+    while(frame_count <123) {
     //while(frames.size() > 0) {
     
     //AVFrame* frame_ = frames.front();
     //frames.pop_front();
+    //printf("linesize: %d %d %d\n",frame_->linesize[0],frame_->linesize[1],frame_->linesize[2]);
+    //av_frame_free(&frame_);
     
-     // ######3.CV使わずにframeを取得したいver.!####
+
+    // ######3.CV使わずにデコーダーでframeを取得したいver.!####
     AVFrame* frame = av_frame_alloc();
     AVPacket packet_cam = AVPacket();
     //format_context_camを定義
@@ -382,11 +390,11 @@ int main(int argc, char* argv[])
       //}
       av_packet_unref(&packet_cam);
     }
-    //printf("after width %d \n",new_frame->width);
     
-    //add end
+    //上でデコードされたframeを取得する
     AVFrame* new_frame = frames_stream.front();
     frames_stream.pop_front();
+    //add end
 
     // 可変fpsでvideoに合わせる場合
     //int64_t pts = av_frame_get_best_effort_timestamp(frame);
@@ -396,26 +404,7 @@ int main(int argc, char* argv[])
 
     new_frame->key_frame = 0;
     new_frame->pict_type = AV_PICTURE_TYPE_NONE; 
-    
-    /*
-    //strideを設定. frame.popで確認したら640,320,320,0...だった
-    //色々設定されてなかった(decode()と同じことしてるのに謎）ので,設定する.
-    frame->linesize[0] = frame_->width;
-    frame->linesize[1] = frame_->width /2;
-    frame->linesize[2] = frame_->width /2;
-    //for (int k=0; k<8; ++k){printf("stride%d: %d\n",k,frame->linesize[k]);}
-    frame->width = frame_->width; //640   //1280 これが原因でavcodec_send failsedしてる!!
-    frame->height = frame_->height; //480  //720
-    frame->format = (AVPixelFormat)frame_->format; //ffmpeg_codec.mp4では4:=AV_PIX_FMT_YUV422P //PSDK_0004.mp4では,0:=AV_PIX_FMT_YUV420P // /dev/video2には1:=AV_PIX_FMT_YUYV422 
-    //frame->field_order = AV_FIELD_PROGRESSIVE;
-    frame->color_range =  frame_->color_range; //0 //0:=AVCOL_RANGE_UNSPECIFIED;//
-    frame->color_primaries = frame_->color_primaries; //2 :=AVCOL_PRI_UNSPECIFIED //0:=AVCOL_PRI_RESERVED0 
-    frame->color_trc = frame_->color_trc;//2 //2:=AVCOL_TRC_UNSPECIFIED;//
-    frame->colorspace = frame_->colorspace; //2 //2:=AVCOL_SPC_UNSPECIFIED;//
-    frame->chroma_location =  frame_->chroma_location; //frames[0]->1 (av_image_alloc->0) //1:=AVCHROMA_LOC_LEFT;//
-    frame->sample_aspect_ratio = frame_->sample_aspect_ratio; */
-    
-
+    printf("send frame width %d at %d step \n",new_frame->width, frame_count);
 
     if (avcodec_send_frame(codec_context, new_frame) != 0) {
       printf("avcodec_send_frame failed\n");
@@ -424,6 +413,7 @@ int main(int argc, char* argv[])
     av_frame_free(&new_frame);
     AVPacket packet = AVPacket();
     while (avcodec_receive_packet(codec_context, &packet) == 0) {
+    printf("aaa\n");
       packet.stream_index = 0;
       dataLength_pct = packet.size;
       dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
