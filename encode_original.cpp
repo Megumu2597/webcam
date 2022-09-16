@@ -29,8 +29,9 @@ static void on_frame_decoded(AVFrame* frame) {
 }
 
 std::deque<AVFrame*> frames_stream;
-//const char* input_path = "/dev/video2";  // "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
-const char* input_path = "output_video2_sameasORG.mp4";//PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+//const char* input_path = "output_video2_1280.mp4";//PSDK_0004.mp4";// ffmpeg_codec.mp4";//
+const char* output_path = "output_original2_video2.mp4";
 
 //framesにframeを溜め込む
 static void on_frame_decoded2(AVFrame* frame) {
@@ -99,7 +100,7 @@ void decode_all()
   }
   */  
    
-  // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
+  // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとrawformatを書く.
   // make codec options
   AVDictionary* codec_options1 = nullptr;
   av_dict_set(&codec_options1, "framerate", "30", 0);
@@ -108,7 +109,9 @@ void decode_all()
   //av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
   av_dict_set(&codec_options1, "video_size", "640x480", 0);
 
-  const auto raw_format = av_find_input_format("rawvideo");
+  const auto raw_format = av_find_input_format("video4linux2");
+  std::cout << raw_format << std::endl;
+
         if (raw_format == nullptr) {
             printf("Could not find RAW input parser in FFmpeg");
             throw std::runtime_error("RAW not found");
@@ -118,8 +121,8 @@ void decode_all()
 
   //add end      
   AVFormatContext* format_context = nullptr;
-  if (avformat_open_input(&format_context, input_path, nullptr, &codec_options1) != 0) {
-  //if (avformat_open_input(&format_context, input_path, raw_format, &codec_options1) != 0) {
+  //if (avformat_open_input(&format_context, input_path, nullptr, &codec_options1) != 0) {
+  if (avformat_open_input(&format_context, input_path, raw_format, &codec_options1) != 0) {
     printf("avformat_open_input failed\n");
   }
 
@@ -208,11 +211,12 @@ void decode_all()
 
 int main(int argc, char* argv[])
 {
+  printf("input_path:: %s \n",input_path);
   av_register_all();
+  std::cout << input_path << std::endl;
 
   decode_all();
   printf("decode finish\n");
-  const char* output_path = "output_original4.mp4";
   AVIOContext* io_context = nullptr;
   if (avio_open(&io_context, output_path, AVIO_FLAG_WRITE) < 0) {
     printf("avio_open failed\n");
@@ -298,7 +302,8 @@ int main(int argc, char* argv[])
 
     av_dict_set(&codec_options2, "video_size", "640x480", 0);
 
-    const auto raw_format2 = av_find_input_format("rawvideo");
+    const auto raw_format2 = av_find_input_format("video4linux2"); //rawvideo ,video4linux2
+
     if (raw_format2 == nullptr) {
         printf("Could not find RAW input parser in FFmpeg");
         throw std::runtime_error("RAW not found");
@@ -306,8 +311,8 @@ int main(int argc, char* argv[])
     //printf("rawformat: %d\n",raw_format2);
    
     AVFormatContext* format_context_cam = nullptr;
-    if (avformat_open_input(&format_context_cam, input_path, nullptr,  &codec_options2) != 0) {
-    //if (avformat_open_input(&format_context_cam, input_path, raw_format2, &codec_options2) != 0) {
+    //if (avformat_open_input(&format_context_cam, input_path, nullptr,  &codec_options2) != 0) {
+    if (avformat_open_input(&format_context_cam, input_path, raw_format2, &codec_options2) != 0) {
       printf("avformat_open_input failed\n");
     }
 
@@ -365,93 +370,103 @@ int main(int argc, char* argv[])
     while(frame_count <123) {
     //while(frames.size() > 0) {
     
-    //AVFrame* frame_ = frames.front();
-    //frames.pop_front();
-    //printf("linesize: %d %d %d\n",frame_->linesize[0],frame_->linesize[1],frame_->linesize[2]);
-    //av_frame_free(&frame_);
-    
+      //AVFrame* frame_ = frames.front();
+      //frames.pop_front();
+      //printf("linesize: %d %d %d\n",frame_->linesize[0],frame_->linesize[1],frame_->linesize[2]);
+      //av_frame_free(&frame_);
+      
 
-    // ######3.CV使わずにデコーダーでframeを取得したいver.!####
-    AVFrame* frame = av_frame_alloc();
-    AVPacket packet_cam = AVPacket();
-    //format_context_camを定義
-    if(av_read_frame(format_context_cam, &packet_cam) == 0) {
-      //if (packet.stream_index == video_stream_cam->index) {
-        if (avcodec_send_packet(codec_context_cam, &packet_cam) != 0) {
-          printf("avcodec_send_packet failed \n");
+      // ######3.CV使わずにデコーダーでframeを取得したいver.!####
+      AVFrame* frame = av_frame_alloc();
+      AVPacket packet_cam = AVPacket();
+      //format_context_camを定義
+      if(av_read_frame(format_context_cam, &packet_cam) == 0) {
+        //if (packet.stream_index == video_stream_cam->index) {
+          if (avcodec_send_packet(codec_context_cam, &packet_cam) != 0) {
+            printf("avcodec_send_packet failed \n");
+          }
+          while (avcodec_receive_frame(codec_context_cam, frame) == 0) {
+            //もしかしたら,on_frame_decodedのようにnew_frameを作る必要があるかも. ->ありました!!!!
+            //av_frame_ref(new_frame, frame);
+            on_frame_decoded2(frame); //frames_streamにframeをpushする
+          //printf("width %d \n",frame->width);
+          }
+          //dataLength_pct = packet_cam.size;
+        //}
+        av_packet_unref(&packet_cam);
+      }
+      
+      
+      //std::size_t size = frames_stream.size();
+      //std::cout << size << std::endl;
+      bool frames_empty = frames_stream.empty();
+      //std::cout << std::boolalpha << b << std::endl;
+      if (!frames_stream.empty()){
+        //上でデコードされたframeを取得する
+        AVFrame* new_frame = frames_stream.front();
+        frames_stream.pop_front();
+        //add end
+
+        printf("frame count: %d\n",frame_count);
+        printf("time_base: %d %d\n",time_base.den,time_base.num);
+        printf("codec time_base: %d %d\n",codec_context->time_base.den,codec_context->time_base.num);
+        //printf("newframe pts: %d\n",new_frame->data[40]);
+        // 可変fpsでvideoに合わせる場合
+        //int64_t pts = av_frame_get_best_effort_timestamp(new_frame);
+        //frame->pts = av_rescale_q(pts, time_base, codec_context->time_base);
+        //固定フレームレート
+        new_frame->pts = av_rescale_q(frame_count++, time_base, codec_context->time_base);
+
+        new_frame->key_frame = 0;
+        new_frame->pict_type = AV_PICTURE_TYPE_NONE; 
+        printf("send frame width %d at %d step \n",new_frame->width, frame_count);
+
+        if (avcodec_send_frame(codec_context, new_frame) != 0) {
+          printf("avcodec_send_frame failed\n");
         }
-        while (avcodec_receive_frame(codec_context_cam, frame) == 0) {
-          //もしかしたら,on_frame_decodedのようにnew_frameを作る必要があるかも. ->ありました!!!!
-          //av_frame_ref(new_frame, frame);
-          on_frame_decoded2(frame); //frames_streamにframeをpushする
-         //printf("width %d \n",frame->width);
+        av_frame_free(&frame);
+        av_frame_free(&new_frame);
+        AVPacket packet = AVPacket();
+        while (avcodec_receive_packet(codec_context, &packet) == 0) {
+          printf("aaa\n");
+          packet.stream_index = 0;
+          dataLength_pct = packet.size;
+          dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
+          printf("packet size: %d, data[40] %d  \n", packet.size,packet.data[40]);//data[10]);//これがdatabufferのdatabuff[10]とdata_lengthに相当
+
+          av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
+          memcpy(dataBuffer_pct,packet.data,packet.size);
+          dataLength = packet.size;
+          memset(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN);//arg2->1へn文字コピー frameInfo[frameNumber].size==data_lengthでいいのかな?
+          dataLength = dataLength + VIDEO_FRAME_AUD_LEN;
+          if (av_interleaved_write_frame(format_context, &packet) != 0) {
+            printf("av_interleaved_write_frame failed\n");
+          }
         }
-        //dataLength_pct = packet_cam.size;
-      //}
-      av_packet_unref(&packet_cam);
+        free(dataBuffer_pct); 
+      }
     }
-    
-    //上でデコードされたframeを取得する
-    AVFrame* new_frame = frames_stream.front();
-    frames_stream.pop_front();
-    //add end
 
-    // 可変fpsでvideoに合わせる場合
-    //int64_t pts = av_frame_get_best_effort_timestamp(frame);
-    //frame->pts = av_rescale_q(pts, time_base, codec_context->time_base);
-    //固定フレームレート
-    new_frame->pts = av_rescale_q(frame_count++, time_base, codec_context->time_base);
-
-    new_frame->key_frame = 0;
-    new_frame->pict_type = AV_PICTURE_TYPE_NONE; 
-    printf("send frame width %d at %d step \n",new_frame->width, frame_count);
-
-    if (avcodec_send_frame(codec_context, new_frame) != 0) {
+    // flush encoder
+    if (avcodec_send_frame(codec_context, nullptr) != 0) {
       printf("avcodec_send_frame failed\n");
     }
-    av_frame_free(&frame);
-    av_frame_free(&new_frame);
     AVPacket packet = AVPacket();
     while (avcodec_receive_packet(codec_context, &packet) == 0) {
-    printf("aaa\n");
       packet.stream_index = 0;
-      dataLength_pct = packet.size;
-      dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
-      printf("packet1: %d %d  \n", packet.size,packet.data[40]);//data[10]);//これがdatabufferのdatabuff[10]とdata_lengthに相当
-
       av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
-      memcpy(dataBuffer_pct,packet.data,packet.size);
-      dataLength = packet.size;
-      memset(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN);//arg2->1へn文字コピー frameInfo[frameNumber].size==data_lengthでいいのかな?
-      dataLength = dataLength + VIDEO_FRAME_AUD_LEN;
       if (av_interleaved_write_frame(format_context, &packet) != 0) {
         printf("av_interleaved_write_frame failed\n");
       }
     }
-    free(dataBuffer_pct); 
 
-  }
-
-  // flush encoder
-  if (avcodec_send_frame(codec_context, nullptr) != 0) {
-    printf("avcodec_send_frame failed\n");
-  }
-  AVPacket packet = AVPacket();
-  while (avcodec_receive_packet(codec_context, &packet) == 0) {
-    packet.stream_index = 0;
-    av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
-    if (av_interleaved_write_frame(format_context, &packet) != 0) {
-      printf("av_interleaved_write_frame failed\n");
+    if (av_write_trailer(format_context) != 0) {
+      printf("av_write_trailer failed\n");
     }
-  }
 
-  if (av_write_trailer(format_context) != 0) {
-    printf("av_write_trailer failed\n");
-  }
+    avcodec_free_context(&codec_context);
+    avformat_free_context(format_context);
+    avio_closep(&io_context);
 
-  avcodec_free_context(&codec_context);
-  avformat_free_context(format_context);
-  avio_closep(&io_context);
-
-  return 0;
+    return 0;
 }
