@@ -180,7 +180,7 @@ def overlay():
         #例: 色空間をRGB順に変更してみる なんか青いのでこれ必要.
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-        # 画像を仮想カメラに流す
+        # RGB画像を仮想カメラに流す ->YUV
         camera.schedule_frame(frame)
         #out.write(frame)
         if (write):

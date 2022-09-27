@@ -37,6 +37,63 @@ AVRational time_base = av_make_q(1001, 30000); //30000/1001=29.97fpsに設定.
 //void set_format_conetxt(input_path,)
 void decode_all()
 {
+  /*
+  const char* input_path = "/home/ubuntu/webcam/ffmpeg_codec.mp4";//PSDK_0004.mp4";
+  AVFormatContext* format_context = nullptr;
+  if (avformat_open_input(&format_context, input_path, nullptr, nullptr) != 0) {
+    printf("avformat_open_input failed\n");
+  }
+
+  if (avformat_find_stream_info(format_context, nullptr) < 0) {
+    printf("avformat_find_stream_info failed\n");
+  }
+
+  AVStream* video_stream = nullptr;
+  for (int i = 0; i < (int)format_context->nb_streams; ++i) {
+    if (format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
+      video_stream = format_context->streams[i];
+      break;
+    }
+  }
+  if (video_stream == nullptr) {
+    printf("No video stream ...\n");
+  }
+
+  //time_base = video_stream->time_base;
+
+  AVCodec* codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+  if (codec == nullptr) {
+    printf("No supported decoder ...\n");
+  }
+
+  AVCodecContext* codec_context = avcodec_alloc_context3(codec);
+  if (codec_context == nullptr) {
+    printf("avcodec_alloc_context3 failed\n");
+  }
+
+  if (avcodec_parameters_to_context(codec_context, video_stream->codecpar) < 0) {
+    printf("avcodec_parameters_to_context failed\n");
+  }
+
+  if (avcodec_open2(codec_context, codec, nullptr) != 0) {
+    printf("avcodec_open2 failed\n");
+  }
+
+  AVFrame* frame = av_frame_alloc();
+  AVPacket packet = AVPacket();
+
+  while (av_read_frame(format_context, &packet) == 0) {
+    if (packet.stream_index == video_stream->index) {
+      if (avcodec_send_packet(codec_context, &packet) != 0) {
+        printf("avcodec_send_packet failed\n");
+      }
+      while (avcodec_receive_frame(codec_context, frame) == 0) {
+        on_frame_decoded(frame);
+      }
+    }
+    av_packet_unref(&packet);
+  }
+  */  
   const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
   
   // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.

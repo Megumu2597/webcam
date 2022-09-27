@@ -6,6 +6,10 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+
+#include <libavutil/opt.h>
+#include <libavutil/parseutils.h>
+#include <libavutil/avutil.h>
 }
 #include <opencv2/highgui/highgui.hpp>
 #include <vector>
@@ -20,8 +24,10 @@ extern "C" {
 
 //コードの詳細は, https://proc-cpuinfo.fixstars.com/2017/09/ffmpeg-api-encode/ を参照.
 
+//ここで動画のfps決めてる
 //AVRational time_base = av_make_q(1001, 30000);
-AVRational time_base = av_make_q(1001, 30000);
+int output_fps = 24;
+AVRational time_base = av_make_q(1001, output_fps * 1000);
 std::deque<AVFrame*> frames;
 
 static void on_frame_decoded(AVFrame* frame) {
@@ -33,7 +39,8 @@ static void on_frame_decoded(AVFrame* frame) {
 std::deque<AVFrame*> frames_stream;
 const char* input_path = "/dev/video2";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
 //const char* input_path = "output_video2_1280.mp4";//PSDK_0004.mp4";// ffmpeg_codec.mp4";//
-const char* output_path = "output_original_video2.mp4";
+//const char* output_path = "output_original_video2_420.mp4";
+const char* output_path = "output_original_video2_420.mp4";
 
 //framesにframeを溜め込む
 static void on_frame_decoded2(AVFrame* frame) {
@@ -43,73 +50,15 @@ static void on_frame_decoded2(AVFrame* frame) {
 }
 
 void decode_all()
-{
-  /*
-  const char* input_path = "/home/ubuntu/webcam/ffmpeg_codec.mp4";//PSDK_0004.mp4";
-  AVFormatContext* format_context = nullptr;
-  if (avformat_open_input(&format_context, input_path, nullptr, nullptr) != 0) {
-    printf("avformat_open_input failed\n");
-  }
-
-  if (avformat_find_stream_info(format_context, nullptr) < 0) {
-    printf("avformat_find_stream_info failed\n");
-  }
-
-  AVStream* video_stream = nullptr;
-  for (int i = 0; i < (int)format_context->nb_streams; ++i) {
-    if (format_context->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
-      video_stream = format_context->streams[i];
-      break;
-    }
-  }
-  if (video_stream == nullptr) {
-    printf("No video stream ...\n");
-  }
-
-  //time_base = video_stream->time_base;
-
-  AVCodec* codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
-  if (codec == nullptr) {
-    printf("No supported decoder ...\n");
-  }
-
-  AVCodecContext* codec_context = avcodec_alloc_context3(codec);
-  if (codec_context == nullptr) {
-    printf("avcodec_alloc_context3 failed\n");
-  }
-
-  if (avcodec_parameters_to_context(codec_context, video_stream->codecpar) < 0) {
-    printf("avcodec_parameters_to_context failed\n");
-  }
-
-  if (avcodec_open2(codec_context, codec, nullptr) != 0) {
-    printf("avcodec_open2 failed\n");
-  }
-
-  AVFrame* frame = av_frame_alloc();
-  AVPacket packet = AVPacket();
-
-  while (av_read_frame(format_context, &packet) == 0) {
-    if (packet.stream_index == video_stream->index) {
-      if (avcodec_send_packet(codec_context, &packet) != 0) {
-        printf("avcodec_send_packet failed\n");
-      }
-      while (avcodec_receive_frame(codec_context, frame) == 0) {
-        on_frame_decoded(frame);
-      }
-    }
-    av_packet_unref(&packet);
-  }
-  */  
-   
+{ 
   // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとrawformatを書く.
-  // make codec options
+  // make codec options　入力を読み取る時のオプションを設定する.
   AVDictionary* codec_options1 = nullptr;
   av_dict_set(&codec_options1, "framerate", "30", 0);
   av_dict_set(&codec_options1, "pixel_format", "yuv420p", 0);
-
   //av_dict_set(&codec_options1, "pixel_format", "yuyv422", 0);
   av_dict_set(&codec_options1, "video_size", "640x480", 0);
+  //av_dict_set(&codec_options1, "video_size", "1920x1080", 0);
 
   const auto raw_format = av_find_input_format("rawvideo");//rawvideo,video4linux2
   std::cout << raw_format << std::endl;
@@ -211,6 +160,22 @@ void decode_all()
   avformat_close_input(&format_context);
 }
 
+void list_obj_opt(void *obj){
+	printf("Output some option info about object:\n");
+	printf("Object name:%s\n",(*(AVClass **) obj)->class_name);
+	printf("=====================================\n");
+  printf("Encoding param:\n");
+	av_opt_show2(obj,stderr,AV_OPT_FLAG_ENCODING_PARAM,NULL);
+	printf("Video param:\n");
+	av_opt_show2(obj,stderr,AV_OPT_FLAG_VIDEO_PARAM,NULL);
+	printf("Audio param:\n");
+	av_opt_show2(obj,stderr,AV_OPT_FLAG_AUDIO_PARAM,NULL);
+	printf("Decoding param:\n");
+	av_opt_show2(obj,stderr,AV_OPT_FLAG_DECODING_PARAM,NULL);
+	
+	printf("====================================\n");
+}
+
 int main(int argc, char* argv[])
 {
   printf("input_path:: %s \n",input_path);
@@ -227,6 +192,7 @@ int main(int argc, char* argv[])
 
   AVFormatContext* format_context = nullptr;
   if (avformat_alloc_output_context2(&format_context, nullptr, "mp4", nullptr) < 0) {
+  //if (avformat_alloc_output_context2(&format_context, nullptr, "h264", nullptr) < 0) {
     printf("avformat_alloc_output_context2 failed\n");
   }
 
@@ -242,8 +208,10 @@ int main(int argc, char* argv[])
     printf("avcodec_alloc_context3 failed\n");
   }
 
-  // set picture properties for encoder
+  // set picture properties for encoder デコーダで撮った最初のフレームから情報をとって,エンコーダの設定に用いる.
   AVFrame* first_frame = frames[0];
+  bool frames_empty = frames.empty();
+  printf("frame empty: %d \n",frames_empty); //フレームをデコードできてるか確認.
   codec_context->pix_fmt = (AVPixelFormat)first_frame->format;//0=AV_PIX_FMT_YUV420P
   codec_context->width = first_frame->width;//640
   codec_context->height = first_frame->height;//480
@@ -264,18 +232,21 @@ int main(int argc, char* argv[])
     codec_context->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
   }
 
-  // make codec options
+  // make codec options エンコーダーのオプションを設定をする.ここで出力いじれそう. 参考:https://trac.ffmpeg.org/wiki/Encode/H.264
   AVDictionary* codec_options = nullptr;
   av_dict_set(&codec_options, "preset", "medium", 0);
   //av_dict_set(&codec_options, "pixel_format", "yuyv", 0);
+  av_dict_set(&codec_options, "x264-params", "keyint=10:min-keyint=10", 0);
   //av_dict_set(&codec_options, "crf", "22", 0);
   //av_dict_set(&codec_options, "profile", "high422", 0);
   //av_dict_set(&codec_options, "level", "4.0", 0);
 
+  //オプション確認したい.
+  //list_obj_opt(codec_context);
+
   if (avcodec_open2(codec_context, codec_context->codec, &codec_options) != 0) {
     printf("avcodec_open2 failed\n");
   }
-
   AVStream* stream = avformat_new_stream(format_context, codec);
   if (stream == NULL) {
     printf("avformat_new_stream failed");
@@ -296,8 +267,8 @@ int main(int argc, char* argv[])
   //#############CV使わずにdecoderを作ってcamをgetする方法#############################
   //const char* input_path = "/dev/video0";// "/home/ubuntu/webcam/PSDK_0004.mp4";// ffmpeg_codec.mp4";//
   
-    // https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter 参考に,optionsとraw_formatを書く.
-    // make codec options
+    // optionに関しては, https://stackoverflow.com/questions/58681845/ffmpeg-raw-video-size-parameter を参考に,optionsとraw_formatを書く.
+    // make codec options　入力を開く時の設定を決める.
     AVDictionary* codec_options2 = nullptr;
     av_dict_set(&codec_options2, "framerate", "30", 0);
     //av_dict_set(&codec_options2, "pixel_format", "yuyv422", 0);
@@ -373,7 +344,9 @@ int main(int argc, char* argv[])
 
 
     //loop for frame_count times START!!!!!!!!
-    while(frame_count < 123) {
+    //ここで動画の長さ決めてる
+    int video_length = 10;
+    while(frame_count < video_length * output_fps) {
     //while(frames.size() > 0) {
     
       //AVFrame* frame_ = frames.front();
@@ -405,7 +378,7 @@ int main(int argc, char* argv[])
       
       //std::size_t size = frames_stream.size();
       //std::cout << size << std::endl;
-      bool frames_empty = frames_stream.empty();
+      //bool frames_empty = frames_stream.empty();
       //std::cout << std::boolalpha << b << std::endl;
       if (!frames_stream.empty()){
         //上でデコードされたframeを取得する
@@ -437,13 +410,12 @@ int main(int argc, char* argv[])
           printf("aaa\n");
           packet.stream_index = 0;
           dataLength_pct = packet.size;
-          dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
+          dataBuffer_pct = (unsigned char*)calloc(dataLength_pct + 10, sizeof(char));//origin dataBuffer_pct = (char*)calloc(dataLength_pct + 10, sizeof(char));
           printf("packet size: %d, data[40] %d  \n", packet.size,packet.data[40]);//data[10]);//これがdatabufferのdatabuff[10]とdata_lengthに相当
-
           av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
           memcpy(dataBuffer_pct,packet.data,packet.size);
           dataLength = packet.size;
-          memset(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN);//arg2->1へn文字コピー frameInfo[frameNumber].size==data_lengthでいいのかな?
+          memcpy(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN); // origin memset(&dataBuffer_pct[packet.size], s_frameAudInfo, VIDEO_FRAME_AUD_LEN);//arg2->1へn文字コピー frameInfo[frameNumber].size==data_lengthでいいのかな?
           dataLength = dataLength + VIDEO_FRAME_AUD_LEN;
           //databuffer 完成.
           if (av_interleaved_write_frame(format_context, &packet) != 0) {
@@ -462,6 +434,7 @@ int main(int argc, char* argv[])
     while (avcodec_receive_packet(codec_context, &packet) == 0) {
       packet.stream_index = 0;
       av_packet_rescale_ts(&packet, codec_context->time_base, stream->time_base);
+      //ファイルに保存する
       if (av_interleaved_write_frame(format_context, &packet) != 0) {
         printf("av_interleaved_write_frame failed\n");
       }

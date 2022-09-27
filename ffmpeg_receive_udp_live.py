@@ -32,4 +32,4 @@ while True:
 
     image = np.frombuffer(raw_image, dtype='uint8').reshape((height, width, 3))
     cv2.imshow('image', image)
-    key = cv2.waitKey(1)sd
+    key = cv2.waitKey(1)
